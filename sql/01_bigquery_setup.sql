@@ -4,15 +4,15 @@
 -- =============================================================================
 
 -- 1. Create Datasets (US multi-region location)
-CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT_ID.weather_raw`
+CREATE SCHEMA IF NOT EXISTS `ferrous-coda-515405-q2.weather_raw`
   OPTIONS (location = 'US');
 
-CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT_ID.weather_analytics`
+CREATE SCHEMA IF NOT EXISTS `ferrous-coda-515405-q2.weather_analytics`
   OPTIONS (location = 'US');
 
 -- 2. Raw landing table: append-only (BigQuery Sandbox compatible)
 -- Partitioned by ingestion date and clustered by city for cost-effective scanning
-CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.weather_raw.raw_weather` (
+CREATE TABLE IF NOT EXISTS `ferrous-coda-515405-q2.weather_raw.raw_weather` (
   city              STRING    NOT NULL,
   latitude          FLOAT64,
   longitude         FLOAT64,
