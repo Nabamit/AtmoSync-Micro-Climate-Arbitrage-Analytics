@@ -1,72 +1,328 @@
-# AtmoSync: Micro-Climate Arbitrage Analytics
+# Real-Time Weather Data Pipeline (Kafka + BigQuery + dbt + Streamlit / Power BI)
 
-[![Apache Kafka](https://img.shields.io/badge/Streaming-Apache%20Kafka-231F20?logo=apachekafka)](https://kafka.apache.org/)
-[![Snowflake](https://img.shields.io/badge/Data%20Warehouse-Snowflake-29B5E8?logo=snowflake)](https://www.snowflake.com/)
-[![dbt Core](https://img.shields.io/badge/Transformation-dbt%20Core-FF694B?logo=dbt)](https://www.getdbt.com/)
-[![Apache Superset](https://img.shields.io/badge/BI%20%26%20Visualization-Apache%20Superset-2F6BFF?logo=apache-superset)](https://superset.apache.org/)
+An end-to-end data engineering and analytics project that collects live weather data from the free [Open-Meteo API](https://open-meteo.com/), streams it through **Apache Kafka**, loads it into **Google BigQuery**, transforms it with **dbt**, and visualizes it with **two alternative dashboards**:
 
----
+- **Plan A:** a Python dashboard built with **Streamlit**
+- **Plan B:** a **Power BI** dashboard connected to BigQuery
 
-## 📌 Problem Statement
+> Weather data by [Open-Meteo.com](https://open-meteo.com/) (licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
 
-Traditional supply chain analytics rely heavily on static transit times and generic macro-weather forecasts. They fail to track how real-time, hyper-local micro-climate shifts (such as sudden humidity or temperature spikes inside individual shipping containers) degrade agricultural commodities before they reach the market.
-
----
-
-## 🎯 Use Case
-
-A commodities trader at **Infotact** monitors the **AtmoSync** real-time dashboard:
-
-1. **Telemetry Drift Detection:** The streaming pipeline detects an unpredicted internal temperature drift in *Container A*, accelerating the spoilage rate of fresh avocados inside.
-2. **Instant Arbitrage Computation:** The platform dynamically calculates **"Spoilage Arbitrage"**—balancing projected shelf-life degradation against market transit distances and real-time spot commodity prices.
-3. **Actionable Rerouting Alert:** The trader receives an immediate alert recommending rerouting the shipment to a closer, secondary market.
-4. **Value Preserved:** Goods are sold at a premium quality grade before falling below acceptable market thresholds, securing revenue and mitigating catastrophic spoilage losses.
+> **Verified Nov 2026 (re-check the linked Google and Microsoft docs, because these details change):**
+> - The **BigQuery sandbox** needs no credit card and gives the free-tier limits (10 GB storage, 1 TB of queries per month), but **tables expire after 60 days** and **streaming inserts, DML statements, and the Data Transfer Service are not available**.
+> - Because of that, this project loads data with **batch load jobs** (free, and allowed in the sandbox) instead of streaming inserts, and dbt uses only **views and tables** (no incremental models, which use `MERGE`).
+> - Power BI's BigQuery connector supports sign-in with a Google account or a Google service account.
 
 ---
 
-## 🏗️ System Architecture & Key Modules
+## Table of Contents
 
-```mermaid
-flowchart LR
-    A["Python IoT Simulator\n(Temp, Humidity, Vibration)"] --> B["Apache Kafka\n(Streaming Ingestion)"]
-    B --> C["Snowflake\n(Raw Ingestion Tables)"]
-    D["Commodity Spot\nPricing Feeds"] --> C
-    C --> E["dbt (Data Build Tool)\n(ELT & Arbitrage Modeling)"]
-    E --> F["Snowflake\n(Clustered & Curated Marts)"]
-    F --> G["Apache Superset\n(Real-Time Arbitrage Dashboard)"]
-    G --> H["Automated Alerts\n(Slack / Email)"]
+1. [Project Purpose](#1-project-purpose)
+2. [The Two Dashboard Plans](#2-the-two-dashboard-plans)
+3. [Basic Fundamentals](#3-basic-fundamentals)
+4. [Architecture](#4-architecture)
+5. [Tools & Technologies](#5-tools--technologies)
+6. [Project Structure](#6-project-structure)
+7. [Prerequisites](#7-prerequisites)
+8. [Phase 1: Build the Data Pipeline](#8-phase-1-build-the-data-pipeline)
+9. [Phase 2, Plan A: Streamlit Dashboard](#9-phase-2-plan-a-streamlit-dashboard)
+10. [Phase 2, Plan B: Power BI Dashboard](#10-phase-2-plan-b-power-bi-dashboard)
+11. [Scheduling](#11-scheduling)
+12. [Cost Control & Limits](#12-cost-control--limits)
+13. [Troubleshooting](#13-troubleshooting)
+14. [API Limits & Attribution](#14-api-limits--attribution)
+15. [Future Improvements](#15-future-improvements)
+
+---
+
+## 1. Project Purpose
+
+**What is this project meant to be?**
+
+A hands-on portfolio project that demonstrates a modern cloud data stack from source to dashboard:
+
+- **Ingest** live data from a public REST API
+- **Stream** it using a message broker (Kafka)
+- **Load** it into a serverless cloud data warehouse (BigQuery)
+- **Transform** it into clean, analysis-ready tables (dbt)
+- **Visualize** it two ways: a code-based dashboard (Streamlit) and a BI-tool dashboard (Power BI)
+
+**Skills it shows:** API integration, streaming concepts, cloud data warehousing, SQL, data modeling, analytics engineering, cloud IAM and authentication, Python dashboard development, BI dashboard design, and pipeline automation.
+
+**Questions the dashboards answer:**
+
+- What is the current temperature, humidity, and wind speed in each city?
+- How do temperatures trend over the last hours and days?
+- Which city is hottest, coldest, or windiest right now?
+- Is the pipeline fresh (when was the last update)?
+
+---
+
+## 2. The Two Dashboard Plans
+
+Phase 1 (the data pipeline) is identical for both plans. You only choose how to present the data in Phase 2. You can build both.
+
+| | **Plan A: Streamlit** | **Plan B: Power BI** |
+|---|---|---|
+| Built with | Python code (`app.py`) | Drag-and-drop in Power BI Desktop |
+| Data refresh | Automatic (cached query, refreshes every 5 minutes) | Manual or scheduled refresh in Power BI |
+| Runs on | Windows, macOS, Linux | Power BI Desktop is Windows only |
+| Sharing | Live link if deployed (Streamlit Community Cloud) | `.pbix` file, screenshots, or Power BI Service |
+| Cost | Free | Power BI Desktop is free |
+| Skills it highlights | Python, pandas, app development | BI modeling, visual design, business reporting |
+| Auth to BigQuery | Your Google credentials locally, or a read-only service account when deployed | Google account sign-in, or a read-only service account |
+
+---
+
+## 3. Basic Fundamentals
+
+| Concept | Plain-English meaning | Role in this project |
+|---|---|---|
+| **REST API** | A web address you request (HTTP GET) to receive data, usually as JSON. | Open-Meteo returns weather as JSON. No API key needed. |
+| **Polling** | Asking an API repeatedly on a schedule. | Open-Meteo doesn't push data, so our producer asks every 15 minutes. |
+| **Message broker** | A middleman that safely holds messages between programs. | Kafka sits between the API fetcher and the warehouse loader. |
+| **Producer / Consumer** | Producer sends messages to a topic. Consumer reads them. | Producer fetches weather. Consumer loads it into BigQuery. |
+| **Topic / Offset** | A named channel in Kafka / a bookmark of what's been read. | `weather_raw` topic. Offsets are committed only after a successful load. |
+| **BigQuery** | Google's serverless data warehouse. No servers to manage, you pay per query by data scanned. | Stores raw and transformed weather data. |
+| **Project → Dataset → Table** | BigQuery's hierarchy: `project.dataset.table`. A dataset is like a folder of tables. | `weather_raw` and `weather_analytics` datasets. |
+| **Sandbox / free tier** | Free usage: 10 GB storage and 1 TB of queries per month. The sandbox needs no card but expires tables after 60 days. | Lets you build the whole project at no cost. |
+| **Load job vs streaming insert** | A load job adds a batch of rows (free). Streaming inserts add rows one by one (billed, and not available in the sandbox). | Consumer uses batch load jobs. |
+| **Partitioning & clustering** | Organizing a table so queries scan less data. | Raw table is partitioned by load date and clustered by city. |
+| **IAM, service account, ADC** | Permissions are granted to roles. A service account is a robot identity. Application Default Credentials (ADC) lets your code reuse your `gcloud` login. | Local scripts use ADC or Service Account JSON key. Dashboards can use a read-only service account. |
+| **ELT** | Load raw data first, then transform inside the warehouse. | Raw table → dbt models, all inside BigQuery. |
+| **dbt** | Runs SQL `SELECT` models in your warehouse to build clean tables, with tests and docs. | Builds staging and mart tables. |
+| **Layered modeling** | Raw → Staging (clean) → Marts (business-ready). | `raw_weather` → `stg_weather` → `fct_*` tables. |
+| **Idempotency / dedup** | Re-running a step must not create bad duplicates. | BigQuery doesn't enforce unique keys, so dbt removes duplicates with `QUALIFY ROW_NUMBER()`. |
+| **Streamlit rerun model** | A Streamlit script reruns top to bottom on every interaction. | `st.cache_data` caches query results so BigQuery isn't queried on every click. |
+| **Import vs DirectQuery** | Import copies data into Power BI. DirectQuery queries the source live on each interaction. | Plan B uses Import (cheaper and faster). |
+
+> **Honest note:** Kafka and BigQuery are more than this small data volume strictly needs. They are used here to learn and demonstrate a real production-style stack.
+
+---
+
+## 4. Architecture
+
+```
+┌──────────────────┐   HTTP GET     ┌──────────────────┐
+│  Open-Meteo API  │ ─────────────► │  Python Producer │
+│  (free, no key)  │   every 15 min │  (requests)      │
+└──────────────────┘                └────────┬─────────┘
+                                             │ JSON messages
+                                             ▼
+                                   ┌──────────────────┐
+                                   │   Apache Kafka   │  (Docker, local)
+                                   │ topic:           │
+                                   │  weather_raw     │
+                                   └────────┬─────────┘
+                                            │
+                                            ▼
+                                   ┌──────────────────┐
+                                   │  Python Consumer │  micro-batches
+                                   │ (BigQuery load   │  (20 sec / 50 rows)
+                                   │  jobs, auth)     │
+                                   └────────┬─────────┘
+                                            │ batch load job (free)
+                                            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                  GOOGLE BIGQUERY  (cloud)                     │
+│                                                               │
+│  <project>.weather_raw.raw_weather   (append-only raw data)   │
+│          │                                                    │
+│          │  dbt run                                           │
+│          ▼                                                    │
+│  <project>.weather_analytics                                  │
+│     stg_weather        (view: clean + dedupe)                 │
+│     fct_weather_hourly (table)                                │
+│     fct_weather_daily  (table)                                │
+│     fct_weather_latest (table: newest reading per city)       │
+└───────────────┬───────────────────────────────┬───────────────┘
+                │                               │
+                ▼                               ▼
+   ┌─────────────────────────┐     ┌─────────────────────────┐
+   │  PLAN A: Streamlit      │     │  PLAN B: Power BI       │
+   │  Python app, cached     │     │  BigQuery connector,    │
+   │  queries, KPI cards,    │     │  Import mode, visuals,  │
+   │  charts, map            │     │  refresh                │
+   └─────────────────────────┘     └─────────────────────────┘
 ```
 
-### 1. Streaming Ingestion (Apache Kafka)
-* High-throughput event streaming architecture ingesting continuous telemetry from simulated IoT container sensors (temperature, humidity, vibration).
+**Data flow summary**
 
-### 2. Cloud Data Warehouse (Snowflake)
-* Highly scalable centralized cloud data warehouse storing raw high-velocity JSON IoT streams alongside historical and live commodity pricing feeds.
-
-### 3. Data Transformation (dbt Core)
-* Modular ELT modeling to unpack and clean raw JSON payloads, join telemetry with spot market pricing, and evaluate complex spoilage degradation curves and arbitrage margins directly in SQL.
-
-### 4. Visualization Layer (Apache Superset)
-* Real-time executive BI dashboards visualizing live container health, route progression, financial exposure, and high-margin reroute opportunities.
+1. The producer calls the API for each configured city and publishes one JSON message per city to Kafka.
+2. The consumer collects messages into small batches and loads each batch into `raw_weather` with a BigQuery load job.
+3. dbt cleans, de-duplicates, and aggregates the raw data into mart tables in `weather_analytics`.
+4. **Plan A:** Streamlit queries the mart tables and renders the dashboard. **Plan B:** Power BI imports the mart tables and renders the dashboard.
 
 ---
 
-## 📅 Week-wise Development Plan
+## 5. Tools & Technologies
 
-| Week | Data Engineering Track (Kafka, Snowflake, dbt) | Analytics & Visualization Track (Superset) |
-| :--- | :--------------------------------------------- | :----------------------------------------- |
-| **Week 1** | **Ingestion Architecture:**<br>• Build Python IoT simulator generating container telemetry.<br>• Set up Kafka topics and stream data into Snowflake raw tables. | **BI Foundations:**<br>• Deploy Apache Superset.<br>• Connect Superset to Snowflake warehouse and configure user access roles. |
-| **Week 2** | **ELT Pipeline:**<br>• Configure dbt Core.<br>• Write SQL staging models to clean raw JSON IoT payloads and join with mock commodity pricing data. | **Initial Dashboards:**<br>• Build baseline charts showing historical container routes and basic temperature fluctuations. |
-| **Mid-Project Review** | **Pipeline Validation:**<br>• Benchmark Kafka event streaming for zero-lag high-frequency ingestion.<br>• Validate dbt staging models compile and run cleanly. | **Data Integrity Check:**<br>• Ensure Superset correctly renders raw data tables directly from Snowflake. |
-| **Week 3** | **Advanced Analytics:**<br>• Write complex dbt models calculating the **Spoilage Arbitrage** metric (`time-to-spoilage` vs. `distance-to-market`). | **Arbitrage UI:**<br>• Build core arbitrage dashboard highlighting **"At-Risk"** containers and recommended reroute destinations. |
-| **Week 4** | **Automation:**<br>• Orchestrate dbt run schedules.<br>• Optimize Snowflake query performance using table clustering and materialized views. | **Refine & Polish:**<br>• Finalize the BI interface styling and UX.<br>• Set up automated Slack/Email alerts triggered by arbitrage opportunities. |
-| **Final Project Review** | **A fully automated, streaming ELT pipeline** handling high-velocity IoT data seamlessly. | **A real-time executive dashboard** driving immediate financial decision-making. |
+| Layer | Tool | Purpose |
+|---|---|---|
+| Data source | [Open-Meteo API](https://open-meteo.com/en/docs) | Free weather forecast and current conditions |
+| Language | Python 3.10+ | Producer, consumer, and Streamlit app |
+| HTTP client | `requests` | Calls the API |
+| Streaming | Apache Kafka (KRaft mode, Docker) | Message broker |
+| Kafka client | `kafka-python-ng` / `confluent-kafka` | Python producer and consumer |
+| Data warehouse | **Google BigQuery** (sandbox or free tier) | Cloud storage and SQL engine |
+| Google tooling | Google Cloud Console / Service Account / `gcloud` | Cloud setup, IAM, BigQuery datasets |
+| BigQuery client | `google-cloud-bigquery`, `pandas`, `pyarrow`, `db-dtypes` | Consumer loads data. Streamlit reads data. |
+| Transformation | dbt Core + `dbt-bigquery` | SQL modeling, tests, docs |
+| **Dashboard (Plan A)** | **Streamlit** + pandas | Python web dashboard |
+| **Dashboard (Plan B)** | **Power BI Desktop** (Windows) | BI dashboard |
+| Containers | Docker + Docker Compose | Runs Kafka locally |
+| Config | `python-dotenv` | Loads `.env` settings |
+| Scheduling | Windows Task Scheduler / cron | Runs dbt on a schedule |
+| Deployment (optional) | Streamlit Community Cloud | Public link for Plan A |
 
 ---
 
-## 🏁 Deliverables Summary
+## 6. Project Structure
 
-- [ ] **Streaming Pipeline:** Python IoT Telemetry Simulator + Kafka Topics + Snowflake Ingestion
-- [ ] **Data Transformation:** dbt Core Project with staging, intermediate, and marts layers (spoilage curves & arbitrage metrics)
-- [ ] **Data Warehouse:** Optimized Snowflake data models (clustering, materialized views)
-- [ ] **Business Intelligence:** Interactive Apache Superset dashboards with automated reroute alerting
+```
+weather-pipeline/
+├── README.md
+├── docker-compose.yml            # Kafka only (BigQuery is in the cloud)
+├── requirements.txt
+├── .env.example
+├── .gitignore
+├── sql/
+│   └── 01_bigquery_setup.sql     # datasets + raw table
+├── ingestion/
+│   ├── config.py                 # cities, Kafka topic, BigQuery settings
+│   ├── producer.py               # API → Kafka
+│   └── consumer.py               # Kafka → BigQuery (batch load jobs)
+├── weather_dbt/
+│   ├── dbt_project.yml
+│   └── models/
+│       ├── sources.yml
+│       ├── schema.yml            # dbt tests
+│       ├── staging/
+│       │   └── stg_weather.sql
+│       └── marts/
+│           ├── fct_weather_hourly.sql
+│           ├── fct_weather_daily.sql
+│           └── fct_weather_latest.sql
+├── dashboard/
+│   └── app.py                    # Plan A: Streamlit dashboard
+└── .streamlit/
+    └── secrets.toml.example      # Plan A: service account template (deployment)
+```
+
+---
+
+## 7. Prerequisites
+
+- A Google account (for free BigQuery Sandbox)
+- Docker Desktop installed and running
+- Python 3.10 or newer
+- Git
+- **Plan B only:** Power BI Desktop (Windows)
+
+---
+
+## 8. Phase 1: Build the Data Pipeline
+
+### Step 1: Create a Google Cloud project and open BigQuery
+
+1. Sign in at [console.cloud.google.com/bigquery](https://console.cloud.google.com/bigquery) with your Google account.
+2. Create a new project (for example `weather-pipeline`). Note the **Project ID** (it may differ from the name).
+3. BigQuery Sandbox is automatically enabled with zero credit card needed (10 GB storage, 1 TB queries free per month).
+
+### Step 2: Authentication
+
+- **Service Account (Recommended on Windows):** Create a service account in Cloud IAM with `BigQuery Admin` (or `BigQuery Data Editor` + `BigQuery Job User`), download the JSON key as `service-account-key.json`, and reference it in `.env`.
+- **Google Cloud SDK / ADC:** Alternatively, install `gcloud` and run `gcloud auth application-default login`.
+
+### Step 3: Create datasets and raw table
+
+In the BigQuery console, run `sql/01_bigquery_setup.sql`:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT_ID.weather_raw`
+  OPTIONS (location = 'US');
+
+CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT_ID.weather_analytics`
+  OPTIONS (location = 'US');
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.weather_raw.raw_weather` (
+  city              STRING    NOT NULL,
+  latitude          FLOAT64,
+  longitude         FLOAT64,
+  observed_at       DATETIME  NOT NULL,
+  temperature_c     FLOAT64,
+  humidity_pct      FLOAT64,
+  wind_speed_kmh    FLOAT64,
+  precipitation_mm  FLOAT64,
+  weather_code      INT64,
+  ingested_at       TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(ingested_at)
+CLUSTER BY city;
+```
+
+### Step 4: Python environment and project files
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Step 5: Start Kafka with Docker
+
+```bash
+docker compose up -d
+docker ps
+```
+
+### Step 6 & 7: Run Ingestion
+
+```bash
+# Terminal 1: Consumer (Kafka -> BigQuery)
+python ingestion/consumer.py
+
+# Terminal 2: Producer (Open-Meteo -> Kafka)
+python ingestion/producer.py
+```
+
+### Step 8: Transform with dbt
+
+```bash
+cd weather_dbt
+dbt debug
+dbt run
+dbt test
+```
+
+---
+
+## 9. Phase 2, Plan A: Streamlit Dashboard
+
+Run the Streamlit application:
+```bash
+streamlit run dashboard/app.py
+```
+
+---
+
+## 10. Phase 2, Plan B: Power BI Dashboard
+
+1. Open **Power BI Desktop** → **Get Data** → **Google BigQuery**.
+2. Sign in with your Google Account or Service Account.
+3. Import the transformed tables: `fct_weather_latest`, `fct_weather_hourly`, and `fct_weather_daily`.
+4. Build the visuals (KPI Cards, Temperature Line Chart, Daily Bar Chart, and Map).
+
+---
+
+## 11. Cost Control & Limits
+
+- **Sandbox:** No credit card required. 10 GB storage and 1 TB queries free per month.
+- **Batch Load Jobs:** 100% free (streaming inserts are billed and disabled in sandbox).
+- **Streamlit Cache:** Query cached with `st.cache_data(ttl=300)` and safety cap `maximum_bytes_billed`.
+
+---
+
+## License & Credits
+
+- Weather data: [Open-Meteo.com](https://open-meteo.com/), CC BY 4.0
+- Pipeline code: MIT
