@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: weather
+    schema: "{{ env_var('BQ_RAW_DATASET', 'weather_raw') }}"
+    tables:
+      - name: raw_weather
+        description: "Raw weather telemetry ingested via Kafka batch load jobs."

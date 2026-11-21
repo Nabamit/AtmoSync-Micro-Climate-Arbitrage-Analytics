@@ -1,0 +1,8 @@
+venv/
+.env
+*key*.json
+.streamlit/secrets.toml
+weather_dbt/target/
+weather_dbt/logs/
+__pycache__/
+*.log

@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_weather
+    description: "Cleaned and deduplicated weather readings partitioned by city and observation time."
+    columns:
+      - name: city
+        tests: [not_null]
+      - name: observed_at
+        tests: [not_null]
+
+  - name: fct_weather_hourly
+    description: "Hourly aggregated weather statistics."
+    columns:
+      - name: city
+        tests: [not_null]
+      - name: hour_start
+        tests: [not_null]
+
+  - name: fct_weather_daily
+    description: "Daily aggregated weather extremes and precipitation."
+    columns:
+      - name: city
+        tests: [not_null]
+      - name: weather_date
+        tests: [not_null]
+
+  - name: fct_weather_latest
+    description: "Newest weather reading per city, optimized for live dashboard cards and maps."
+    columns:
+      - name: city
+        tests: [not_null, unique]

@@ -1,0 +1,23 @@
+# Copy this configuration to your ~/.dbt/profiles.yml
+# On Windows, this file is located at C:\Users\<Your-Username>\.dbt\profiles.yml
+
+weather_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth              # Uses Google Application Default Credentials (gcloud auth application-default login)
+      project: YOUR_PROJECT_ID   # Replace with your GCP project ID
+      dataset: weather_analytics # Target dataset for mart models
+      location: US               # Must match your BigQuery datasets location
+      threads: 4
+
+    # Alternative: Using a Service Account JSON Key file
+    dev_sa:
+      type: bigquery
+      method: service-account
+      project: YOUR_PROJECT_ID
+      dataset: weather_analytics
+      location: US
+      keyfile: C:/path/to/your/service-account-key.json
+      threads: 4
