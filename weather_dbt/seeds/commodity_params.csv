@@ -1,0 +1,2 @@
+commodity,ref_temp_c,q10,base_shelf_life_days,rh_min,rh_max,units_per_kg,wholesale_ratio,grade_a_min_quality,grade_b_min_quality,min_sellable_quality
+avocado,6.0,2.5,21,85,95,5,0.4,0.8,0.6,0.4

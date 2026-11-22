@@ -1,0 +1,3 @@
+shipment_id,container_id,vessel_mmsi,commodity,quantity_kg,origin_port_id,primary_market_id,secondary_market_id,sim_drift_c_per_hour
+S-001,CONT-A,111111111,avocado,18000,MZO,SEA,LAX,0.6
+S-002,CONT-B,222222222,avocado,18000,MZO,SEA,OAK,0.0

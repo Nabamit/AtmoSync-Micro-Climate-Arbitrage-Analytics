@@ -30,3 +30,20 @@ models:
     columns:
       - name: city
         tests: [not_null, unique]
+  - name: fct_container_latest
+    columns:
+      - name: container_id
+        tests: [not_null, unique]
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['OK', 'WARNING', 'CRITICAL']
+
+  - name: fct_spoilage_arbitrage
+    columns:
+      - name: shipment_id
+        tests: [not_null, unique]
+      - name: recommendation
+        tests:
+          - accepted_values:
+              values: ['REROUTE', 'CONTINUE']

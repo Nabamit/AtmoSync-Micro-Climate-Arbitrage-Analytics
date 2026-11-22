@@ -8,3 +8,5 @@ __pycache__/
 *.log
 weather_dbt/profiles.yml
 weather_dbt/.user.yml
+data/raw/
+state/

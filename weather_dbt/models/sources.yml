@@ -5,4 +5,12 @@ sources:
     schema: "{{ env_var('BQ_RAW_DATASET', 'weather_raw') }}"
     tables:
       - name: raw_weather
-        description: "Raw weather telemetry ingested via Kafka batch load jobs."
+        description: "Legacy raw weather telemetry."
+      - name: raw_container_telemetry
+        description: "Raw internal container telemetry (temp, humidity, setpoint, door events)."
+      - name: raw_vessel_position
+        description: "Ship positions from AISstream or simulation."
+      - name: raw_route_weather
+        description: "Ambient weather and marine conditions at the ship's current position."
+      - name: raw_market_price
+        description: "Terminal and retail spot market prices per destination port."

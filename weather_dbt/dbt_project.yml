@@ -15,6 +15,25 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  freight_usd_per_kg_per_1000km: 0.05     # assumption: freight cost
+  reroute_threshold_usd: 500              # minimum gain before recommending a reroute
+
+seeds:
+  weather_dbt:
+    commodity_params:
+      +column_types:
+        ref_temp_c: float64
+        q10: float64
+        base_shelf_life_days: float64
+        rh_min: float64
+        rh_max: float64
+        units_per_kg: float64
+        wholesale_ratio: float64
+        grade_a_min_quality: float64
+        grade_b_min_quality: float64
+        min_sellable_quality: float64
+
 models:
   weather_dbt:
     staging:

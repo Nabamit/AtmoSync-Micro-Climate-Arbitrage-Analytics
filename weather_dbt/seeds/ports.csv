@@ -1,0 +1,5 @@
+port_id,port_name,port_lat,port_lon,price_region
+MZO,Manzanillo (origin),19.05,-104.32,
+SEA,Seattle,47.60,-122.34,Seattle
+LAX,Los Angeles,33.74,-118.26,LosAngeles
+OAK,Oakland (San Francisco Bay),37.80,-122.28,SanFrancisco
