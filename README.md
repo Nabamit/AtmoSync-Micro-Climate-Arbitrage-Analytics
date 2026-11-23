@@ -187,17 +187,8 @@ $$r_{\text{total}} = r_{\text{temp}} \times r_{\text{humidity}}$$
 
 ### B. Quality on Arrival & Price Tiers
 Given the ship's current speed and geodesic distance to destination market $M$:
-
-\text{ETA}_{\text{hours}} =
-\frac{\text{Distance}_{\text{km}}}{\text{Speed}_{\text{km/h}}}
-\text{Quality}_{\text{arrival}} =
-\max\left(
-0,\;
-\text{Quality}_{\text{current}}
--
-\frac{\text{ETA}_{\text{hours}} \times r_{\text{total}}}
-{\text{BaseShelfLife} \times 24}
-\right)
+$$\text{ETA}_{\text{hours}} = \frac{\text{Distance}_{\text{km}}}{\text{Speed}_{\text{km/h}}}$$
+$$\text{Quality}_{\text{arrival}} = \max\left(0, \text{Quality}_{\text{current}} - \frac{\text{ETA}_{\text{hours}} \times r_{\text{total}}}{\text{BaseShelfLife} \times 24}\right)$$
 
 * **Grade A ($\ge 0.80$):** $100\%$ market price multiplier.
 * **Grade B ($\ge 0.60$):** $70\%$ market price multiplier.
