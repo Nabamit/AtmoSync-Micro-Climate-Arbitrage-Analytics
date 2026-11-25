@@ -18,7 +18,7 @@ Traditional agricultural supply chain analytics rely on macro-weather forecasts 
 
 ---
 
-## 🏗️ 2. End-to-End System Architecture
+## 🏗️ 2. End-to-End System Architecture:
 
 ```mermaid
 flowchart TD
