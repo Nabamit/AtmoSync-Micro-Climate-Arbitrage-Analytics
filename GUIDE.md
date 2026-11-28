@@ -258,18 +258,6 @@ streamlit run dashboard/app.py
 - **Pipeline Code:** MIT License.
 
 
-
-What I built: A system that collects four data streams: container sensor data, ship position, route weather and sea conditions, and avocado market prices. It calculates how fast the avocados are losing shelf life, then decides whether to REROUTE the shipment to a closer market or CONTINUE to the planned one. This is called Spoilage Arbitrage. The trader can sell while the avocados are still Grade A, instead of losing value.
-
-Technologies I used:
-
-Python to simulate container sensors, because no free API gives real in-container data. The door-event pattern comes from a real Zenodo cold-chain dataset.
-Open-Meteo API, AIS data and Kaggle prices for real weather, ship and market data.
-Apache Kafka for streaming, with four topics and one consumer.
-Google BigQuery as the data warehouse, chosen for its free tier. The free sandbox blocks streaming inserts, so I use batch loads and alerts arrive within a few minutes.
-dbt Core to clean the data and calculate shelf life, quality score and the reroute decision.
-Streamlit and Power BI for dashboards with alerts, container cards and a ship map.
-
 Key learning: I first treated this as a weather report. Then I realized the real value is inside the container, so I redesigned the project to simulate sensors and use real APIs for everything else.
 
 Conclusion: AtmoSync turns raw streaming data into clear reroute decisions, using a modern data engineering stack that is free to run.
